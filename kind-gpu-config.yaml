@@ -1,0 +1,21 @@
+# Kind cluster configuration with GPU support
+# Note: Requires NVIDIA Docker runtime and GPU operator
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  image: kindest/node:v1.25.3
+- role: worker
+  image: kindest/node:v1.25.3
+  # Mount GPU device
+  extraMounts:
+  - hostPath: /dev/null
+    containerPath: /dev/null
+  # GPU configuration (requires additional setup)
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        feature-gates: "DevicePlugins=true"
+

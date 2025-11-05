@@ -1,0 +1,20 @@
+# Standalone model selection pod (for manual testing)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: model-selection
+  namespace: kubeflow
+spec:
+  containers:
+  - name: selector
+    image: vllm-utils:v0.1
+    command: ["python", "/model-selection.py"]
+    volumeMounts:
+    - name: model-storage
+      mountPath: /models
+  volumes:
+  - name: model-storage
+    persistentVolumeClaim:
+      claimName: llm-model-storage
+  restartPolicy: Never
+

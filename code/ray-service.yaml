@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-ray-service
+  namespace: kubeflow
+  labels:
+    app: vllm-ray-serve
+    service: llm-inference
+spec:
+  type: ClusterIP
+  ports:
+  - name: serve
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: dashboard
+    port: 8265
+    targetPort: 8265
+    protocol: TCP
+  selector:
+    ray.io/cluster: vllm-ray-cluster
+    ray.io/node-type: head
+

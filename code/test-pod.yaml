@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: llm-test-pod
+  namespace: kubeflow
+spec:
+  containers:
+  - name: test
+    image: vllm-utils:v0.1
+    command: ['sleep', 'infinity']
+    volumeMounts:
+    - name: model-storage
+      mountPath: /models
+  volumes:
+  - name: model-storage
+    persistentVolumeClaim:
+      claimName: llm-model-storage
+  restartPolicy: Never
+

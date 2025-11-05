@@ -1,0 +1,14 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hello-vllm-
+spec:
+  entrypoint: hello
+  serviceAccountName: argo
+  templates:
+  - name: hello
+    container:
+      image: alpine:3.7
+      command: [echo]
+      args: ["Hello from vLLM Workflow!"]
+

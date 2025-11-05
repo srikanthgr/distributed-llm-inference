@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: llm-script-
+spec:
+  serviceAccountName: argo
+  entrypoint: test-llm
+  templates:
+  - name: test-llm
+    script:
+      image: python:3.10
+      command: [python]
+      source: |
+        import json
+        
+        # Simulate LLM evaluation results
+        models = {
+            "opt-125m": {"latency_ms": 50, "quality_score": 0.75},
+            "opt-350m": {"latency_ms": 120, "quality_score": 0.82},
+            "opt-1.3b": {"latency_ms": 300, "quality_score": 0.89}
+        }
+        
+        print("Model Evaluation Results:")
+        for model, metrics in models.items():
+            print(f"  {model}: {json.dumps(metrics)}")
+        
+        # Select best based on quality
+        best = max(models.items(), key=lambda x: x[1]['quality_score'])
+        print(f"\nBest model: {best[0]} with quality {best[1]['quality_score']}")
+

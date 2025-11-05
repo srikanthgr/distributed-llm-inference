@@ -1,0 +1,38 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: vllm-llm-service
+  namespace: kubeflow
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 3
+    containers:
+    - name: vllm
+      image: vllm/vllm-openai:latest
+      args:
+      - --model=/models/production
+      - --served-model-name=llm-model
+      - --max-model-len=2048
+      - --tensor-parallel-size=1
+      ports:
+      - containerPort: 8000
+        protocol: TCP
+      resources:
+        limits:
+          # For GPU clusters, uncomment and adjust:
+          # nvidia.com/gpu: 1
+          memory: 8Gi
+          cpu: 4
+        requests:
+          memory: 4Gi
+          cpu: 2
+      volumeMounts:
+      - name: model-storage
+        mountPath: /models
+        readOnly: true
+    volumes:
+    - name: model-storage
+      persistentVolumeClaim:
+        claimName: llm-model-storage
+

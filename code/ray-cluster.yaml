@@ -1,0 +1,97 @@
+apiVersion: ray.io/v1alpha1
+kind: RayCluster
+metadata:
+  name: vllm-ray-cluster
+  namespace: kubeflow
+spec:
+  rayVersion: '2.9.0'
+  enableInTreeAutoscaling: true
+  
+  # Head node configuration
+  headGroupSpec:
+    rayStartParams:
+      dashboard-host: '0.0.0.0'
+      num-cpus: '0'  # Don't schedule tasks on head
+      block: 'true'
+    template:
+      spec:
+        containers:
+        - name: ray-head
+          image: rayproject/ray:2.9.0-py310
+          ports:
+          - containerPort: 6379
+            name: gcs
+          - containerPort: 8265
+            name: dashboard
+          - containerPort: 10001
+            name: client
+          - containerPort: 8000
+            name: serve
+          resources:
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+          volumeMounts:
+          - name: model-storage
+            mountPath: /models
+            readOnly: true
+          env:
+          - name: RAY_SERVE_ENABLE_EXPERIMENTAL_STREAMING
+            value: "1"
+        volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: llm-model-storage
+  
+  # Worker nodes with GPUs
+  workerGroupSpecs:
+  - replicas: 2
+    minReplicas: 1
+    maxReplicas: 5
+    groupName: gpu-workers
+    rayStartParams:
+      num-cpus: "4"
+      num-gpus: "1"
+      block: 'true'
+    template:
+      metadata:
+        labels:
+          ray.io/group: gpu-workers
+      spec:
+        containers:
+        - name: ray-worker
+          image: rayproject/ray:2.9.0-py310-gpu
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "ray stop"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              cpu: "8"
+              memory: "32Gi"
+            requests:
+              cpu: "4"
+              memory: "16Gi"
+          volumeMounts:
+          - name: model-storage
+            mountPath: /models
+            readOnly: true
+        volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: llm-model-storage
+        
+        # Optional: GPU node selector
+        # nodeSelector:
+        #   nvidia.com/gpu: "true"
+        
+        # Optional: Tolerations for GPU nodes
+        # tolerations:
+        # - key: nvidia.com/gpu
+        #   operator: Exists
+        #   effect: NoSchedule
+

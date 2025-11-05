@@ -1,0 +1,13 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: llm-model-storage
+  namespace: kubeflow
+spec:
+  accessModes: [ "ReadWriteMany" ]
+  resources:
+    requests:
+      storage: 20Gi
+  # For production, specify storageClassName
+  # storageClassName: fast-ssd
+

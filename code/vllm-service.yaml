@@ -1,0 +1,70 @@
+# Simple Kubernetes Service for vLLM (without KServe)
+# Use this for testing or simpler deployments
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-service
+  namespace: kubeflow
+spec:
+  selector:
+    app: vllm-server
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+    spec:
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai:latest
+        args:
+        - --model=/models/production
+        - --served-model-name=llm-model
+        - --max-model-len=2048
+        - --host=0.0.0.0
+        - --port=8000
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: 4
+          requests:
+            memory: 4Gi
+            cpu: 2
+        volumeMounts:
+        - name: model-storage
+          mountPath: /models
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 120
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 5
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: llm-model-storage
+

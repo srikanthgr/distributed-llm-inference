@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vllm-test
+spec:
+  containers:
+  - name: vllm
+    image: vllm/vllm-openai:latest
+    args:
+    - --model=facebook/opt-125m
+    - --max-model-len=2048
+    ports:
+    - containerPort: 8000
+    resources:
+      limits:
+        # For GPU-enabled clusters, uncomment:
+        # nvidia.com/gpu: 1
+        memory: 4Gi
+      requests:
+        memory: 2Gi
+

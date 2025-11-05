@@ -1,0 +1,167 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: vllm-llm-pipeline-
+  namespace: kubeflow
+spec:
+  entrypoint: llm-pipeline
+  serviceAccountName: argo
+  podGC:
+    strategy: OnPodSuccess
+  
+  volumes:
+  - name: model-storage
+    persistentVolumeClaim:
+      claimName: llm-model-storage
+
+  templates:
+  # Main workflow DAG
+  - name: llm-pipeline
+    steps:
+    - - name: model-acquisition-step
+        template: model-acquisition-step
+    
+    - - name: model-optimization-steps
+        template: model-optimization-steps
+    
+    - - name: model-selection-step
+        template: model-selection-step
+    
+    - - name: deploy-inference-service
+        template: deploy-inference-service
+
+  # Step 1: Model Acquisition (Download from HuggingFace)
+  - name: model-acquisition-step
+    serviceAccountName: argo
+    memoize:
+      key: "model-download-{{workflow.parameters.model_name}}"
+      maxAge: "24h"
+      cache:
+        configMap:
+          name: workflow-cache
+          key: model-cache
+    container:
+      image: vllm-utils:v0.1
+      imagePullPolicy: IfNotPresent
+      command: ["python", "/model-acquisition.py"]
+      env:
+      - name: MODEL_NAME
+        value: "facebook/opt-125m"  # Change to your desired model
+      - name: LOCAL_DIR
+        value: "/models/base"
+      volumeMounts:
+      - name: model-storage
+        mountPath: /models
+
+  # Step 2: Parallel Model Optimization
+  - name: model-optimization-steps
+    steps:
+    - - name: optimize-fp16
+        template: optimize-fp16
+      - name: optimize-awq
+        template: optimize-awq
+      - name: optimize-gptq
+        template: optimize-gptq
+
+  - name: optimize-fp16
+    serviceAccountName: argo
+    container:
+      image: vllm-utils:v0.1
+      imagePullPolicy: IfNotPresent
+      command: 
+      - python
+      - /model-optimization.py
+      - --source_model_dir=/models/base
+      - --optimized_model_dir=/models/optimized/fp16
+      - --optimization_type=fp16
+      volumeMounts:
+      - name: model-storage
+        mountPath: /models
+
+  - name: optimize-awq
+    serviceAccountName: argo
+    container:
+      image: vllm-utils:v0.1
+      imagePullPolicy: IfNotPresent
+      command:
+      - python
+      - /model-optimization.py
+      - --source_model_dir=/models/base
+      - --optimized_model_dir=/models/optimized/awq
+      - --optimization_type=awq
+      volumeMounts:
+      - name: model-storage
+        mountPath: /models
+
+  - name: optimize-gptq
+    serviceAccountName: argo
+    container:
+      image: vllm-utils:v0.1
+      imagePullPolicy: IfNotPresent
+      command:
+      - python
+      - /model-optimization.py
+      - --source_model_dir=/models/base
+      - --optimized_model_dir=/models/optimized/gptq
+      - --optimization_type=gptq
+      volumeMounts:
+      - name: model-storage
+        mountPath: /models
+
+  # Step 3: Model Selection (Evaluate and choose best)
+  - name: model-selection-step
+    serviceAccountName: argo
+    container:
+      image: vllm-utils:v0.1
+      imagePullPolicy: IfNotPresent
+      command: ["python", "/model-selection.py"]
+      volumeMounts:
+      - name: model-storage
+        mountPath: /models
+
+  # Step 4: Deploy Inference Service
+  - name: deploy-inference-service
+    serviceAccountName: argo
+    successCondition: status.conditions.#(type=="Ready")#|#(status=="True")#
+    resource:
+      action: create
+      setOwnerReference: true
+      manifest: |
+        apiVersion: serving.kserve.io/v1beta1
+        kind: InferenceService
+        metadata:
+          name: vllm-llm-service
+          namespace: kubeflow
+        spec:
+          predictor:
+            minReplicas: 1
+            maxReplicas: 3
+            scaleTarget: 10
+            scaleMetric: concurrency
+            containers:
+            - name: vllm
+              image: vllm/vllm-openai:latest
+              args:
+              - --model=/models/production
+              - --served-model-name=llm-model
+              - --max-model-len=2048
+              - --tensor-parallel-size=1
+              ports:
+              - containerPort: 8000
+                protocol: TCP
+              resources:
+                limits:
+                  memory: 8Gi
+                  cpu: 4
+                requests:
+                  memory: 4Gi
+                  cpu: 2
+              volumeMounts:
+              - name: model-storage
+                mountPath: /models
+                readOnly: true
+            volumes:
+            - name: model-storage
+              persistentVolumeClaim:
+                claimName: llm-model-storage
+

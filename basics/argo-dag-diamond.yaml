@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: llm-dag-diamond-
+spec:
+  serviceAccountName: argo
+  entrypoint: diamond
+  templates:
+  - name: echo
+    inputs:
+      parameters:
+        - name: message
+    container:
+      image: alpine:3.7
+      command: [echo, "{{inputs.parameters.message}}"]
+  - name: diamond
+    dag:
+      tasks:
+      - name: download-model
+        template: echo
+        arguments:
+          parameters: [{name: message, value: "Step A: Download Model"}]
+      - name: quantize-awq
+        dependencies: [download-model]
+        template: echo
+        arguments:
+          parameters: [{name: message, value: "Step B: Quantize with AWQ"}]
+      - name: quantize-gptq
+        dependencies: [download-model]
+        template: echo
+        arguments:
+          parameters: [{name: message, value: "Step C: Quantize with GPTQ"}]
+      - name: select-best
+        dependencies: [quantize-awq, quantize-gptq]
+        template: echo
+        arguments:
+          parameters: [{name: message, value: "Step D: Select Best Model"}]
+
