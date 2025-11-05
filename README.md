@@ -1,5 +1,7 @@
 # vLLM Distributed Inference Project
 
+> **⚠️ Note**: This is an experimental project for learning and exploration purposes.
+
 This project demonstrates production-grade distributed LLM inference patterns using vLLM, following the same architecture as the traditional ML project but adapted for Large Language Models.
 
 ## Architecture
